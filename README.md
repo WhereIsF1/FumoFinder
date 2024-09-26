@@ -15,7 +15,11 @@ If using proxies, you can specify the proxy file with the `--proxy` argument. Li
 FumoFinder includes a built-in proxy checker that tests each proxy's ability to reach the trace.moe API. Non-working proxies are automatically dropped, allowing you to load a bulk freebie list if needed (not recommended, as free proxies often result in failed frame processing).
 
 ### AniList ID
-An AniList ID can be specified to improve filtering and more accurately determine the episode numbers.
+An AniList ID can be specified to improve filtering and more accurately determine the episode numbers, especially for older anime, which may require a higher frame count due to possible imprecisions in the trace.moe database.
+
+### Important Notes
+- **Older Anime**: Results for older anime can be imprecise. Increasing the frame count and specifying an AniList ID can help improve accuracy.
+- **Newly Aired Anime**: Very new anime (just aired) may be missing from the trace.moe database and therefore cannot be found.
 
 ### File Renaming
 Currently, the rename function appends `_EPxx` to the filename; custom naming might be implemented in the future (maybe or maybe not, lol).
