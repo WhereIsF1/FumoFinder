@@ -21,3 +21,6 @@ An AniList ID can be specified to improve filtering and more accurately determin
 Currently, the rename function appends `_EPxx` to the filename; custom naming might be implemented in the future (maybe or maybe not, lol).
 
 Example usage can be seen when running the tool with the `--help` command.
+
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
