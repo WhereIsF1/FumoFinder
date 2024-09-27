@@ -14,16 +14,53 @@ type TraceMoeResponse struct {
 	Result     []TraceMoeResult `json:"result"`
 }
 
-// TraceMoeResult represents individual results from trace.moe
+// TraceMoeResult represents the response from the trace.moe API.
 type TraceMoeResult struct {
-	AnilistID  int           `json:"anilist"`
+	Anilist    AnilistInfo   `json:"anilist"` // Changed from struct to custom type
 	Filename   string        `json:"filename"`
-	Episode    EpisodeNumber `json:"episode"`
+	Episode    EpisodeNumber `json:"episode"` // Use EpisodeNumber to handle both string and number
 	From       float64       `json:"from"`
 	To         float64       `json:"to"`
 	Similarity float64       `json:"similarity"`
 	Video      string        `json:"video"`
 	Image      string        `json:"image"`
+}
+
+// AnilistInfo handles parsing of anilist data that might be in different formats
+type AnilistInfo struct {
+	ID       int      `json:"id"`
+	IDMal    int      `json:"idMal"`
+	Title    Title    `json:"title"`
+	Synonyms []string `json:"synonyms"`
+	IsAdult  bool     `json:"isAdult"`
+	Raw      any      `json:"-"` // To hold raw data if parsing fails
+}
+
+// Title holds the title information of the anime
+type Title struct {
+	Native  string `json:"native"`
+	Romaji  string `json:"romaji"`
+	English string `json:"english"`
+}
+
+// UnmarshalJSON custom unmarshal to handle unexpected formats for anilist info
+func (a *AnilistInfo) UnmarshalJSON(data []byte) error {
+	// Define a temporary struct with the expected structure
+	type Alias AnilistInfo
+	var aux Alias
+	if err := json.Unmarshal(data, &aux); err == nil {
+		*a = AnilistInfo(aux)
+		return nil
+	}
+
+	// If parsing as structured data fails, store the raw value
+	var raw any
+	if err := json.Unmarshal(data, &raw); err == nil {
+		a.Raw = raw
+		return nil
+	}
+
+	return fmt.Errorf("failed to unmarshal anilist info: %s", string(data))
 }
 
 // EpisodeNumber handles parsing of episode numbers that might be string, float, or unexpected formats

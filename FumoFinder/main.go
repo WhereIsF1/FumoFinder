@@ -1,9 +1,11 @@
-package main
+// todo:
+// fix episode_identifier randomly dropping frames when proxies fails - just dont use bad proxies lol
+// fix some info collection not working properly
+// implement custom naming for files
+// implement api key usage option for trace.moe
+// bulk confirm rename option
 
-//	todo:
-//	implement api key usage
-//	update identifier to use api key if provided
-//  implement something to counterfight proxy failure/timeout - just dont use bad proxies right?
+package main
 
 import (
 	"fmt"
@@ -83,18 +85,33 @@ func main() {
 	// Initialize the file renamer
 	fileRenamer := renamer.NewFileRenamer(cfg.InputFolder)
 
-	// Process each frame and identify the episode
-	fmt.Println(strings.Repeat("-", 50))                      // Separator before processing frames
-	episodeIdentifier.IdentifyEpisodes(frames, cfg.Threshold) // Process frames concurrently using multiple proxies or direct connection
+	// Start the identification process in a separate goroutine
+	go episodeIdentifier.IdentifyEpisodes(frames, cfg.Threshold)
 
+	// Wait for the identification process to complete
+	episodeIdentifier.WaitForCompletion()
+
+	fmt.Println()
+	fmt.Println("✔️ All frames have been processed, exiting the identification process...")
+
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println("✅ Episode identification completed.")
 	// Check if matches are available and add them to the renamer
-	for _, match := range episodeIdentifier.Matches {
-		fileRenamer.AddResult(match) // Add MatchInfo to the file renamer
+	if len(episodeIdentifier.Matches) == 0 {
+		fmt.Println("⚠️ No matches found. Skipping renaming.")
+	} else {
+		fmt.Printf("✅ %d matches found. Adding to renamer...\n", len(episodeIdentifier.Matches))
+		for _, match := range episodeIdentifier.Matches {
+			fileRenamer.AddResult(match) // Add MatchInfo to the file renamer
+		}
+
+		// Rename the files based on majority episode results
+		fmt.Println("🚀 Starting file renaming...")
+		fileRenamer.RenameFiles()
+		fmt.Println("✅ File renaming completed.")
 	}
 
-	// Rename the files based on majority episode results
-	fileRenamer.RenameFiles()
-	fmt.Println(strings.Repeat("=", 50)) // End separator
+	fmt.Println(strings.Repeat("=", 50))
 
 	// Perform cleanup if the no-cleanup flag is not set
 	if !cfg.NoCleanup {
