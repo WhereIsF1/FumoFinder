@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/WhereIsF1/FumoFinder/internal/identifier" // Import the identifier package for MatchInfo
@@ -13,45 +14,45 @@ import (
 
 // FileRenamer handles renaming MKV files based on the majority episode result.
 type FileRenamer struct {
-	results     map[string][]string // Map of MKV file name to a list of episode numbers
-	inputFolder string              // Path to the folder where the MKV files are located
+	results     map[string][]identifier.MatchInfo // Map of MKV file name to a list of MatchInfo structs
+	inputFolder string                            // Path to the folder where the MKV files are located
 }
 
 // NewFileRenamer creates a new FileRenamer with the given input folder.
 func NewFileRenamer(inputFolder string) *FileRenamer {
 	return &FileRenamer{
-		results:     make(map[string][]string),
+		results:     make(map[string][]identifier.MatchInfo),
 		inputFolder: strings.TrimSpace(inputFolder), // Trim spaces from the folder path
 	}
 }
 
 // AddResult adds an identification result for an MKV file using MatchInfo.
 func (fr *FileRenamer) AddResult(match identifier.MatchInfo) {
-	// Add the episode number to the list associated with the MKV file name
-	fr.results[match.VideoName] = append(fr.results[match.VideoName], match.Episode.String())
+	// Add the MatchInfo to the list associated with the MKV file name
+	fr.results[match.VideoName] = append(fr.results[match.VideoName], match)
 }
 
-// RenameFiles renames the MKV files based on the majority episode number.
+// RenameFiles renames the MKV files based on the majority episode number and title.
 func (fr *FileRenamer) RenameFiles() {
 	fmt.Println()
 	fmt.Println("📝 Ready to rename files based on identified episodes.")
 	fmt.Println("⚠️ Confirm renaming each file or choose to skip.")
 	fmt.Println()
 
-	for mkvFile, episodes := range fr.results {
-		if len(episodes) == 0 {
+	for mkvFile, matches := range fr.results {
+		if len(matches) == 0 {
 			fmt.Printf("❌ No episode results found for file: %s\n", mkvFile)
 			continue
 		}
 
-		// Determine the most common episode number
-		majorityEpisode, confidence := findMajorityEpisode(episodes)
-		if majorityEpisode == "" {
-			fmt.Printf("❌ Failed to determine majority episode for file: %s\n", mkvFile)
+		// Determine the most common title and episode number
+		majorityTitle, majorityEpisode, confidence := findMajorityTitleAndEpisode(matches)
+		if majorityEpisode == "" || majorityTitle == "" {
+			fmt.Printf("❌ Failed to determine majority episode or title for file: %s\n", mkvFile)
 			continue
 		}
 
-		// Warn the user if the confidence level is below 75%
+		// Warn the user if the confidence level is below 90%
 		if confidence < 0.90 {
 			fmt.Printf("⚠️ The confidence level for episode %s is only %.0f%%. Results may not be reliable.\n", majorityEpisode, confidence*100)
 		}
@@ -66,7 +67,7 @@ func (fr *FileRenamer) RenameFiles() {
 		}
 
 		// Construct the new file name for the original MKV
-		newFileName := constructNewFileName(fullPath, majorityEpisode)
+		newFileName := constructNewFileName(fullPath, majorityTitle, majorityEpisode)
 		fmt.Println()
 		fmt.Printf("📍	Renaming File:\n")
 		fmt.Printf("➡️	Original:  %s\n", filepath.Base(fullPath))
@@ -77,15 +78,18 @@ func (fr *FileRenamer) RenameFiles() {
 			// Rename the original MKV file
 			err := os.Rename(fullPath, newFileName)
 			if err != nil {
+				fmt.Print("")
 				log.Printf("❌ Failed to rename file %s: %v", fullPath, err)
 				fmt.Println()
 				fmt.Println()
 			} else {
+				fmt.Print("")
 				fmt.Printf("✅ Successfully renamed file to: %s\n", newFileName)
 				fmt.Println()
 				fmt.Println()
 			}
 		} else {
+			fmt.Print("")
 			fmt.Printf("⏭️ Skipped renaming for file: %s\n", mkvFile)
 			fmt.Println()
 			fmt.Println()
@@ -93,47 +97,88 @@ func (fr *FileRenamer) RenameFiles() {
 	}
 }
 
-// findMajorityEpisode finds the most frequently occurring episode in the list and calculates the confidence level.
-func findMajorityEpisode(episodes []string) (string, float64) {
+// findMajorityTitleAndEpisode finds the most frequent title and episode number in the list and calculates the confidence level.
+func findMajorityTitleAndEpisode(matches []identifier.MatchInfo) (string, string, float64) {
 	episodeCount := make(map[string]int)
-	for _, episode := range episodes {
-		episodeCount[episode]++
+	titleCount := make(map[string]int)
+
+	for _, match := range matches {
+		// Count episode occurrences
+		episodeCount[match.Episode.String()]++
+
+		// Count title occurrences (prioritize English, fallback to Romaji or Native)
+		title := match.TitleEnglish
+		if title == "" {
+			title = match.TitleRomaji
+		}
+		if title == "" {
+			title = match.TitleNative
+		}
+		titleCount[title]++
 	}
 
-	// Find the episode with the highest count
+	// Find the most common episode
 	var majorityEpisode string
-	maxCount := 0
-	totalCount := len(episodes)
-
+	maxEpisodeCount := 0
+	totalCount := len(matches)
 	for episode, count := range episodeCount {
-		if count > maxCount || (count == maxCount && episode < majorityEpisode) {
+		if count > maxEpisodeCount || (count == maxEpisodeCount && episode < majorityEpisode) {
 			majorityEpisode = episode
-			maxCount = count
+			maxEpisodeCount = count
+		}
+	}
+
+	// Find the most common title
+	var majorityTitle string
+	maxTitleCount := 0
+	for title, count := range titleCount {
+		if count > maxTitleCount || (count == maxTitleCount && title < majorityTitle) {
+			majorityTitle = title
+			maxTitleCount = count
 		}
 	}
 
 	// Calculate confidence as the percentage of the majority episode count over total episodes
-	confidence := float64(maxCount) / float64(totalCount)
-	return majorityEpisode, confidence
+	confidence := float64(maxEpisodeCount) / float64(totalCount)
+	return majorityTitle, majorityEpisode, confidence
 }
 
-// constructNewFileName constructs a new file name with the episode number.
-func constructNewFileName(originalPath, episode string) string {
+// constructNewFileName constructs a new file name with the series title and episode number.
+func constructNewFileName(originalPath, seriesTitle, episode string) string {
 	// Format the episode number
 	if len(episode) == 1 {
 		episode = "0" + episode
 	}
 
+	// Replace spaces with dots in the series title
+	seriesTitle = strings.ReplaceAll(seriesTitle, " ", ".")
+
+	// Remove special characters, only allow alphanumeric characters and dots
+	re := regexp.MustCompile(`[^a-zA-Z0-9.]`)
+	seriesTitle = re.ReplaceAllString(seriesTitle, "")
+
+	// Construct the new file name using series title and episode number
 	ext := filepath.Ext(originalPath)
-	baseName := strings.TrimSuffix(originalPath, ext)
-	newFileName := fmt.Sprintf("%s_E%s%s", baseName, episode, ext)
-	return newFileName
+	baseDir := filepath.Dir(originalPath)
+	newFileName := fmt.Sprintf("%s.E%s%s", seriesTitle, episode, ext)
+
+	return filepath.Join(baseDir, newFileName)
 }
 
 // confirmRename prompts the user to confirm the renaming action using basic text input.
 func confirmRename() bool {
-	fmt.Printf("↪️ Do you want to rename (y/n): ")
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
-	return strings.TrimSpace(strings.ToLower(input)) == "y"
+	for {
+		fmt.Printf("↪️ Do you want to rename (y/n): ")
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(strings.ToLower(input))
+
+		if input == "y" {
+			return true
+		} else if input == "n" {
+			return false
+		} else {
+			fmt.Println("❌ Invalid input. Please type 'y' for yes or 'n' for no.")
+		}
+	}
 }

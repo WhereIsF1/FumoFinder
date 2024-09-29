@@ -1,9 +1,10 @@
 // todo:
 // fix episode_identifier randomly dropping frames when proxies fails - just dont use bad proxies lol
 // fix some info collection not working properly
-// implement custom naming for files
+// implement custom naming for files + somehow done - have to figure out how to implement season finding
 // implement api key usage option for trace.moe
 // bulk confirm rename option
+// first frame is black and therefore not useful to use for identification... maybe skip first frame or automatically adjust timestamp a couple of seconds forward
 
 package main
 
