@@ -22,7 +22,7 @@ An AniList ID can be specified to improve filtering and more accurately determin
 - **Newly Aired Anime**: Very new anime (just aired) may be missing from the trace.moe database and therefore cannot be found.
 
 ### File Renaming
-Currently, the rename function appends `_EPxx` to the filename; custom naming might be implemented in the future (maybe or maybe not, lol).
+The renaming function now uses the format `series.name.Exx.`
 
 Example usage can be seen when running the tool with the `--help` command.
 
