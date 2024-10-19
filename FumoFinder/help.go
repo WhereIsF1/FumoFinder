@@ -39,6 +39,16 @@ Example:
 
 Example with a playtime of 23 minutes:
   If the playtime is 23 minutes (1380 seconds) and --frames is set to 10, frames will be extracted at intervals of 138 seconds (1380 / 10).
+
+Notice about the Frame Count:
+  - For better accuracy, it is recommended to extract 10 or more frames per video.
+
+Important Notes:
+  - Please do not abuse the trace.moe API. Use it responsibly and consider supporting the project.
+  - You can support the trace.moe project by donating or becoming a patron: 
+    > https://patreon.com/soruly 
+    > https://github.com/sponsors/soruly
+    > https://www.paypal.com/paypalme/soruly
 	`)
 }
 

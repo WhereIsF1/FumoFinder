@@ -137,7 +137,12 @@ func generateTimestamps(duration float64, numFrames int) []string {
 	timestamps := make([]string, numFrames)
 
 	for i := 0; i < numFrames; i++ {
-		timestamps[i] = fmt.Sprintf("%.2f", float64(i)*step)
+		// Add 10-second offset to the first frame, then generate normal timestamps
+		if i == 0 {
+			timestamps[i] = fmt.Sprintf("%.2f", 10.0) // Start at 10 seconds for the first frame
+		} else {
+			timestamps[i] = fmt.Sprintf("%.2f", float64(i)*step)
+		}
 	}
 
 	return timestamps

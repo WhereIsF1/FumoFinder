@@ -35,65 +35,134 @@ func (fr *FileRenamer) AddResult(match identifier.MatchInfo) {
 // RenameFiles renames the MKV files based on the majority episode number and title.
 func (fr *FileRenamer) RenameFiles() {
 	fmt.Println()
-	fmt.Println("📝 Ready to rename files based on identified episodes.")
-	fmt.Println("⚠️ Confirm renaming each file or choose to skip.")
+	fmt.Println("📝	Ready to rename files based on identified episodes.")
+	fmt.Println("⚠️	Confirm renaming each file or choose to skip.")
+	fmt.Println()
+
+	// Ask if the user wants to use bulk mode
+	if ConfirmBulkRename() {
+		// Bulk renaming mode
+		bulkPreview := make(map[string]string) // Store old and new file names
+
+		fmt.Println()
+
+		// Generate preview of all renames
+		for mkvFile, matches := range fr.results {
+			if len(matches) == 0 {
+				fmt.Printf("❌	No episode results found for file: %s\n", mkvFile)
+				continue
+			}
+
+			majorityTitle, majorityEpisode, confidence := findMajorityTitleAndEpisode(matches)
+			if majorityEpisode == "" || majorityTitle == "" {
+				fmt.Printf("❌	Failed to determine majority episode or title for file: %s\n", mkvFile)
+				continue
+			}
+
+			if confidence < 0.90 {
+				fmt.Printf("⚠️	The confidence level for episode %s is only %.0f%%. Results may not be reliable.\n", majorityEpisode, confidence*100)
+			}
+
+			fullPath := filepath.Join(fr.inputFolder, strings.TrimSpace(mkvFile))
+			newFileName := constructNewFileName(fullPath, majorityTitle, majorityEpisode)
+
+			bulkPreview[fullPath] = newFileName
+		}
+
+		// Show the user the old and new names for confirmation
+		fmt.Println()
+		fmt.Println("📋	Bulk Rename Preview:")
+		fmt.Println()
+		for oldName, newName := range bulkPreview {
+			fmt.Printf("➡️	Original: %s\n", filepath.Base(oldName))
+			fmt.Printf("➡️	New Name: %s\n\n", filepath.Base(newName))
+		}
+
+		// Ask for confirmation to proceed with the bulk rename
+		fmt.Printf("↪️	Do you want to rename all files (y to confirm, n to cancel and go back to individual renaming)? ")
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(strings.ToLower(input))
+
+		if input == "y" {
+			// Proceed with bulk renaming
+			fmt.Println()
+			for oldName, newName := range bulkPreview {
+				if err := os.Rename(oldName, newName); err != nil {
+					fmt.Printf("❌	Failed to rename file %s: %v\n", oldName, err)
+				} else {
+					fmt.Printf("✅	Successfully renamed file to: %s\n", filepath.Base(newName))
+				}
+			}
+			return // Exit after bulk renaming
+		} else {
+			fmt.Println("⏭️	Bulk renaming canceled. Proceeding with individual renaming.")
+		}
+	}
+
+	// Call individual renaming for each file
 	fmt.Println()
 
 	for mkvFile, matches := range fr.results {
-		if len(matches) == 0 {
-			fmt.Printf("❌ No episode results found for file: %s\n", mkvFile)
-			continue
-		}
+		fr.renameSingleFile(mkvFile, matches)
+	}
+}
 
-		// Determine the most common title and episode number
-		majorityTitle, majorityEpisode, confidence := findMajorityTitleAndEpisode(matches)
-		if majorityEpisode == "" || majorityTitle == "" {
-			fmt.Printf("❌ Failed to determine majority episode or title for file: %s\n", mkvFile)
-			continue
-		}
+// renameSingleFile handles the renaming of individual files based on the most common title and episode.
+func (fr *FileRenamer) renameSingleFile(mkvFile string, matches []identifier.MatchInfo) {
+	if len(matches) == 0 {
+		fmt.Printf("❌	No episode results found for file: %s\n", mkvFile)
+		return
+	}
 
-		// Warn the user if the confidence level is below 90%
-		if confidence < 0.90 {
-			fmt.Printf("⚠️ The confidence level for episode %s is only %.0f%%. Results may not be reliable.\n", majorityEpisode, confidence*100)
-		}
+	// Determine the most common title and episode number
+	majorityTitle, majorityEpisode, confidence := findMajorityTitleAndEpisode(matches)
+	if majorityEpisode == "" || majorityTitle == "" {
+		fmt.Printf("❌	Failed to determine majority episode or title for file: %s\n", mkvFile)
+		return
+	}
 
-		// Construct the full path to the original MKV file
-		fullPath := filepath.Join(fr.inputFolder, strings.TrimSpace(mkvFile))
+	// Warn the user if the confidence level is below 90%
+	if confidence < 0.90 {
+		fmt.Printf("⚠️	The confidence level for episode %s is only %.0f%%. Results may not be reliable.\n", majorityEpisode, confidence*100)
+	}
 
-		// Check if the file exists before renaming
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			log.Printf("❌ File does not exist: %s\n", fullPath)
-			continue
-		}
+	// Construct the full path to the original MKV file
+	fullPath := filepath.Join(fr.inputFolder, strings.TrimSpace(mkvFile))
 
-		// Construct the new file name for the original MKV
-		newFileName := constructNewFileName(fullPath, majorityTitle, majorityEpisode)
-		fmt.Println()
-		fmt.Printf("📍	Renaming File:\n")
-		fmt.Printf("➡️	Original:  %s\n", filepath.Base(fullPath))
-		fmt.Printf("➡️	New Name:  %s\n", filepath.Base(newFileName))
+	// Check if the file exists before renaming
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		log.Printf("❌	File does not exist: %s\n", fullPath)
+		return
+	}
 
-		// Prompt user for confirmation
-		if confirmRename() {
-			// Rename the original MKV file
-			err := os.Rename(fullPath, newFileName)
-			if err != nil {
-				fmt.Print("")
-				log.Printf("❌ Failed to rename file %s: %v", fullPath, err)
-				fmt.Println()
-				fmt.Println()
-			} else {
-				fmt.Print("")
-				fmt.Printf("✅ Successfully renamed file to: %s\n", newFileName)
-				fmt.Println()
-				fmt.Println()
-			}
+	// Construct the new file name for the original MKV
+	newFileName := constructNewFileName(fullPath, majorityTitle, majorityEpisode)
+	fmt.Println()
+	fmt.Printf("📍	Renaming File:\n")
+	fmt.Printf("➡️	Original:  %s\n", filepath.Base(fullPath))
+	fmt.Printf("➡️	New Name:  %s\n", filepath.Base(newFileName))
+
+	// Prompt user for confirmation
+	if confirmRename() {
+		// Rename the original MKV file
+		err := os.Rename(fullPath, newFileName)
+		if err != nil {
+			fmt.Println()
+			log.Printf("❌	Failed to rename file %s: %v", fullPath, err)
+			fmt.Println()
+			fmt.Println()
 		} else {
-			fmt.Print("")
-			fmt.Printf("⏭️ Skipped renaming for file: %s\n", mkvFile)
+			fmt.Println()
+			fmt.Printf("✅	Successfully renamed file to: %s\n", newFileName)
 			fmt.Println()
 			fmt.Println()
 		}
+	} else {
+		fmt.Println()
+		fmt.Printf("⏭️	Skipped renaming for file: %s\n", mkvFile)
+		fmt.Println()
+		fmt.Println()
 	}
 }
 
@@ -168,7 +237,7 @@ func constructNewFileName(originalPath, seriesTitle, episode string) string {
 // confirmRename prompts the user to confirm the renaming action using basic text input.
 func confirmRename() bool {
 	for {
-		fmt.Printf("↪️ Do you want to rename (y/n): ")
+		fmt.Printf("↪️	Do you want to rename (y/n): ")
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(strings.ToLower(input))
@@ -178,7 +247,25 @@ func confirmRename() bool {
 		} else if input == "n" {
 			return false
 		} else {
-			fmt.Println("❌ Invalid input. Please type 'y' for yes or 'n' for no.")
+			fmt.Println("❌	Invalid input. Please type 'y' for yes or 'n' for no.")
+		}
+	}
+}
+
+// ConfirmBulkRename prompts the user to choose bulk renaming or individual renaming.
+func ConfirmBulkRename() bool {
+	for {
+		fmt.Printf("↪️	Do you want to start Bulkrenamer (y to confirm, n to cancel and go back to individual renaming)? \n")
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(strings.ToLower(input))
+
+		if input == "y" {
+			return true
+		} else if input == "n" {
+			return false
+		} else {
+			fmt.Println("❌	Invalid input. Please type 'y' for yes or 'n' for no.")
 		}
 	}
 }

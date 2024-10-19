@@ -3,8 +3,6 @@
 // fix some info collection not working properly
 // implement custom naming for files + somehow done - have to figure out how to implement season finding
 // implement api key usage option for trace.moe
-// bulk confirm rename option
-// first frame is black and therefore not useful to use for identification... maybe skip first frame or automatically adjust timestamp a couple of seconds forward
 
 package main
 
@@ -65,13 +63,13 @@ func main() {
 		} else {
 			proxies = proxyLoader.GetProxyList()
 			if len(proxies) > 0 {
-				fmt.Println("✅ Proxies loaded successfully.")
+				fmt.Println("✅	Proxies loaded successfully.")
 			} else {
-				fmt.Println("⚠️ No working proxies found. Proceeding without proxies.")
+				fmt.Println("⚠️	No working proxies found. Proceeding without proxies.")
 			}
 		}
 	} else {
-		fmt.Println("ℹ️ No proxy file specified.")
+		fmt.Println("ℹ️	No proxy file specified.")
 	}
 
 	// Convert []*url.URL to []proxy.ProxyDetails, or use an empty list if no proxies are loaded
@@ -93,23 +91,23 @@ func main() {
 	episodeIdentifier.WaitForCompletion()
 
 	fmt.Println()
-	fmt.Println("✔️ All frames have been processed, exiting the identification process...")
+	fmt.Println("✔️	All frames have been processed, exiting the identification process...")
 
 	fmt.Println(strings.Repeat("-", 50))
-	fmt.Println("✅ Episode identification completed.")
+	fmt.Println("✅	Episode identification completed.")
 	// Check if matches are available and add them to the renamer
 	if len(episodeIdentifier.Matches) == 0 {
-		fmt.Println("⚠️ No matches found. Skipping renaming.")
+		fmt.Println("⚠️	No matches found. Skipping renaming.")
 	} else {
-		fmt.Printf("✅ %d matches found. Adding to renamer...\n", len(episodeIdentifier.Matches))
+		fmt.Printf("✅	%d matches found. Adding to renamer...\n", len(episodeIdentifier.Matches))
 		for _, match := range episodeIdentifier.Matches {
 			fileRenamer.AddResult(match) // Add MatchInfo to the file renamer
 		}
 
 		// Rename the files based on majority episode results
-		fmt.Println("🚀 Starting file renaming...")
+		fmt.Println("🚀	Starting file renaming...")
 		fileRenamer.RenameFiles()
-		fmt.Println("✅ File renaming completed.")
+		fmt.Println("✅	File renaming completed.")
 	}
 
 	fmt.Println(strings.Repeat("=", 50))
